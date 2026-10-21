@@ -1232,7 +1232,7 @@ html.lock { overflow: hidden; }
         <summary>Política de privacidad</summary>
         <p><span class="pend">Pendiente</span> Debe redactarse conforme a la Ley N.° 29733 de Protección de Datos Personales del Perú y su reglamento: quién recoge los datos, para qué se usan (atender pedidos), cuánto tiempo se guardan y cómo pedir acceso, corrección o eliminación.</p>
       </details>
-      <p>Esta página no usa cookies de analítica ni de publicidad.</p>
+      <p id="cookies-legal">Esta página no usa cookies de analítica ni de publicidad.</p>
       <p>© <span id="year">2026</span> TendyPeru. Todos los derechos reservados.</p>
     </div>
   </div>
@@ -1359,26 +1359,149 @@ html.lock { overflow: hidden; }
   <svg viewBox="0 0 24 24" aria-hidden="true" class="bag" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 8h14l-1 12H6z"/><path d="M9 8V6a3 3 0 0 1 6 0v2"/></svg><span>Pedir</span>
 </a>
 
+<!-- =================== MEDICIÓN META PIXEL + CONSENTIMIENTO ===================
+     Solo en esta landing comercial (adultos). NO copiar a las páginas de historias del QR ni álbumes de niños.
+     Sin Pixel ID válido o sin consentimiento, no se carga nada de Meta. Ver TRACKING.md. -->
+<div class="consent" id="consent" role="dialog" aria-labelledby="consent-t" aria-describedby="consent-d" hidden>
+  <p id="consent-t" class="consent-t">Cookies de medición 🍪</p>
+  <p id="consent-d">Con tu permiso usamos Meta Pixel para saber qué anuncios traen pedidos. No se activa si no aceptas y la tienda funciona igual.</p>
+  <div class="consent-prefs" id="consent-prefs" hidden>
+    <label><input type="checkbox" checked disabled> Necesarias: recordar tu elección y el límite de pedidos (siempre activas)</label>
+    <label><input type="checkbox" id="consent-mkt"> Medición publicitaria (Meta Pixel)</label>
+  </div>
+  <div class="consent-btns">
+    <button type="button" class="btn btn-primary" data-consent="accept">Aceptar</button>
+    <button type="button" class="btn btn-ghost" data-consent="reject">Rechazar</button>
+    <button type="button" class="btn btn-ghost" data-consent="config" aria-expanded="false" aria-controls="consent-prefs">Configurar</button>
+    <button type="button" class="btn btn-primary" data-consent="save" hidden>Guardar preferencias</button>
+  </div>
+</div>
+<style>
+.consent { position: fixed; z-index: 60; left: var(--gutter-l); right: var(--gutter-r); bottom: calc(16px + env(safe-area-inset-bottom, 0px)); margin-inline: auto; max-width: 560px;
+  background: var(--surface); color: var(--fg); border: 1px solid var(--line); border-radius: var(--radius); box-shadow: var(--shadow); padding: 18px 20px; display: grid; gap: 10px; font-size: var(--step--1); }
+.consent-t { font: 700 var(--step-0) var(--f-body); }
+.consent-prefs { display: grid; gap: 8px; }
+.consent-prefs label { display: flex; gap: 10px; align-items: flex-start; }
+.consent-prefs input { all: revert; flex: none; width: 20px; height: 20px; margin: 1px 0 0; accent-color: var(--accent); }
+.consent-btns { display: flex; flex-wrap: wrap; gap: 8px; }
+.consent-btns .btn { min-height: 44px; padding: 0 1.1em; }
+</style>
+
 <script>
 /* =================================================================
-   CONFIGURACIÓN · cambia el número (con código de país, sin + ni espacios)
-   y el mensaje de WhatsApp en ESTA línea:
+   MEDICIÓN META · configuración (pega aquí el ID del Administrador de eventos)
    ================================================================= */
-const CONFIG = { whatsapp: "51907579197", mensaje: "Hola TendyPeru 👻 Quiero pedir Yesitos divertidos (kit de Halloween). ¿Me ayudan?", formspree: "", envio: 10.00, minKits: 1, maxKits: 500,
+const META_PIXEL_ID = "PENDIENTE_PIXEL_ID";
+const WHATSAPP_NUMBER = "51907579197";
+
+/* Todo va en try/catch: una falla del píxel o un bloqueador nunca debe impedir pedir por WhatsApp. */
+const CONSENT_KEY = "tp_consent_v1";
+const pixelIdValido = () => /^\d{15,16}$/.test(META_PIXEL_ID);
+let pixelListo = false;
+const enviados = new Set(); // evita duplicados dentro de la misma visita
+
+function readConsent() { try { return JSON.parse(localStorage.getItem(CONSENT_KEY) || "null"); } catch (_) { return null; } }
+function hasMarketingConsent() { const c = readConsent(); return !!(c && c.marketing === true); }
+
+function initializeMetaPixel() {
+  if (pixelListo || !pixelIdValido() || !hasMarketingConsent()) return false;
+  try {
+    /* Código base oficial de Meta Pixel */
+    !function(f,b,e,v,n,t,s){if(f.fbq)return;n=f.fbq=function(){n.callMethod?
+    n.callMethod.apply(n,arguments):n.queue.push(arguments)};if(!f._fbq)f._fbq=n;
+    n.push=n;n.loaded=!0;n.version='2.0';n.queue=[];t=b.createElement(e);t.async=!0;
+    t.src=v;s=b.getElementsByTagName(e)[0];s.parentNode.insertBefore(t,s)}(window,
+    document,'script','https://connect.facebook.net/en_US/fbevents.js');
+    fbq("set", "autoConfig", false, META_PIXEL_ID); // sin eventos automáticos de botones ni lectura de campos
+    fbq("consent", "grant");
+    fbq("init", META_PIXEL_ID);
+    pixelListo = true;
+    trackPageView();
+  } catch (_) {}
+  return pixelListo;
+}
+
+// Envía un evento estándar una sola vez por clave (key) en esta visita.
+function sendEvent(name, params, key, eventID) {
+  if (!pixelListo || !hasMarketingConsent() || enviados.has(key)) return;
+  enviados.add(key);
+  try { fbq("track", name, params, eventID ? { eventID } : undefined); } catch (_) {}
+}
+function trackPageView() { sendEvent("PageView", undefined, "PageView"); }
+function trackViewContent(product) {
+  if (!product) return;
+  sendEvent("ViewContent", {
+    content_name: "Yesitos Divertidos - " + product.titulo, content_type: "product",
+    content_ids: [product.sku], value: product.precio, currency: "PEN"
+  }, "ViewContent:" + product.sku);
+}
+// Solo cuando de verdad se abre WhatsApp con un pedido. orderId evita contar dos veces el mismo pedido.
+function trackWhatsAppContact(product, quantity, orderId) {
+  if (!product) return;
+  sendEvent("Contact", {
+    content_name: "Yesitos Divertidos - " + product.titulo, contact_method: "whatsapp", content_type: "product",
+    content_ids: [product.sku], num_items: quantity, value: Math.round(product.precio * quantity * 100) / 100, currency: "PEN"
+  }, "Contact:" + orderId, "contact-" + orderId);
+}
+
+function revokeMarketing() {
+  try { if (window.fbq) fbq("consent", "revoke"); } catch (_) {}
+  pixelListo = false;
+  // Borra los identificadores de Meta en este dominio (no son esenciales).
+  ["_fbp", "_fbc"].forEach(n => { document.cookie = n + "=; Max-Age=0; path=/"; document.cookie = n + "=; Max-Age=0; path=/; domain=" + location.hostname.replace(/^www\./, "."); });
+}
+function saveConsent(marketing) {
+  try { localStorage.setItem(CONSENT_KEY, JSON.stringify({ marketing, fecha: new Date().toISOString() })); } catch (_) {}
+  if (marketing) initializeMetaPixel(); else revokeMarketing();
+}
+
+/* ---------- Aviso de consentimiento (solo si hay Pixel ID válido) ---------- */
+(function consentUI() {
+  const box = document.getElementById("consent");
+  const prefs = document.getElementById("consent-prefs"), mkt = document.getElementById("consent-mkt");
+  const btn = (k) => box.querySelector('[data-consent="' + k + '"]');
+  const show = () => {
+    mkt.checked = hasMarketingConsent();
+    prefs.hidden = true; btn("save").hidden = true; btn("config").setAttribute("aria-expanded", "false");
+    box.hidden = false;
+  };
+  const hide = () => { box.hidden = true; };
+  btn("accept").addEventListener("click", () => { saveConsent(true); hide(); });
+  btn("reject").addEventListener("click", () => { saveConsent(false); hide(); });
+  btn("config").addEventListener("click", () => {
+    const open = prefs.hidden; prefs.hidden = !open; btn("save").hidden = !open; btn("config").setAttribute("aria-expanded", String(open));
+  });
+  btn("save").addEventListener("click", () => { saveConsent(mkt.checked); hide(); });
+
+  const legal = document.getElementById("cookies-legal");
+  if (!pixelIdValido()) return; // integración preparada, pero sin píxel: no hay nada que consentir
+  legal.innerHTML = 'Usamos Meta Pixel para medir anuncios solo si lo aceptas. <button type="button" class="copy-btn" id="cookie-prefs">Preferencias de cookies</button>';
+  document.getElementById("cookie-prefs").addEventListener("click", show);
+  if (readConsent() === null) show(); else initializeMetaPixel();
+})();
+</script>
+
+<script>
+/* =================================================================
+   CONFIGURACIÓN · el número de WhatsApp está arriba (WHATSAPP_NUMBER);
+   el mensaje de WhatsApp, en ESTA línea:
+   ================================================================= */
+const CONFIG = { whatsapp: WHATSAPP_NUMBER, mensaje: "Hola TendyPeru 👻 Quiero pedir Yesitos divertidos (kit de Halloween). ¿Me ayudan?", formspree: "", envio: 10.00, minKits: 1, maxKits: 500,
   // Límite de envíos por navegador: espera entre pedidos y máximo por hora.
   esperaSeg: 60, maxPorHora: 3 };
 
 /* Kits y precios (en soles). Si cambias uno, cámbialo también en la sección de precios del HTML. */
 const KITS = {
-  mini:     { nombre: "🎨 Kit Mini",     figuras: 1, precio: 5.90 },
-  duo:      { nombre: "👻 Kit Dúo",      figuras: 2, precio: 9.90 },
-  aventura: { nombre: "🎃 Kit Aventura", figuras: 3, precio: 12.00 },
-  familiar: { nombre: "🦇 Kit Familiar", figuras: 4, precio: 15.00 }
+  mini:     { nombre: "🎨 Kit Mini",     titulo: "Kit Mini",     sku: "yesitos-kit-1", figuras: 1, precio: 5.90 },
+  duo:      { nombre: "👻 Kit Dúo",      titulo: "Kit Dúo",      sku: "yesitos-kit-2", figuras: 2, precio: 9.90 },
+  aventura: { nombre: "🎃 Kit Aventura", titulo: "Kit Aventura", sku: "yesitos-kit-3", figuras: 3, precio: 12.00 },
+  familiar: { nombre: "🦇 Kit Familiar", titulo: "Kit Familiar", sku: "yesitos-kit-4", figuras: 4, precio: 15.00 }
 };
 const soles = (n) => "S/ " + n.toFixed(2).replace(".", ",");
 
 /* ---------- Enlaces de WhatsApp ---------- */
-const waLink = (text) => "https://wa.me/" + CONFIG.whatsapp + "?text=" + encodeURIComponent(text);
+// api.whatsapp.com directo: la redirección de wa.me convierte los emojis del pedido en "�".
+const waLink = (text) => "https://api.whatsapp.com/send?phone=" + CONFIG.whatsapp + "&text=" + encodeURIComponent(text);
 const pretty = "+" + CONFIG.whatsapp.replace(/^(\d{2})(\d{3})(\d{3})(\d{3})$/, "$1 $2 $3 $4");
 document.getElementById("wa-visible").textContent = pretty;
 document.getElementById("copy-wa").addEventListener("click", (e) => {
@@ -1522,6 +1645,7 @@ const LIMA = ["Ancón","Ate","Barranco","Breña","Carabayllo","Cercado de Lima",
   function open(kit) {
     if (kit) { const r = form.querySelector('input[name="kit"][value="' + kit + '"]'); if (r) r.checked = true; }
     update();
+    trackViewContent(KITS[form.kit.value]); // el kit elegido queda a la vista en el formulario
     lastFocus = document.activeElement;
     sheet.hidden = false;
     document.documentElement.classList.add("lock");
@@ -1572,7 +1696,10 @@ const LIMA = ["Ancón","Ate","Barranco","Breña","Carabayllo","Cercado de Lima",
   // Si cambian algo después de confirmar, el enlace anterior ya no vale: se retira.
   const resetReady = () => { if (status.classList.contains("ok")) { status.className = ""; status.innerHTML = ""; } };
   form.addEventListener("input", () => { update(); resetReady(); });
-  form.addEventListener("change", () => { update(); resetReady(); });
+  form.addEventListener("change", (e) => {
+    update(); resetReady();
+    if (e.target.name === "kit") trackViewContent(KITS[e.target.value]);
+  });
 
   // --- validación ---
   function setErr(errId, inputEl, msg) {
@@ -1667,8 +1794,11 @@ const LIMA = ["Ancón","Ate","Barranco","Breña","Carabayllo","Cercado de Lima",
     saveSend();
     lockButton();
     const { k, n, sub, total: t } = totals(), total = soles(t);
+    // Código de pedido: el cliente lo envía por WhatsApp y sirve luego para registrar la compra real (Purchase) sin duplicados.
+    const orderId = "TP-" + Date.now().toString(36).toUpperCase() + "-" + Math.random().toString(36).slice(2, 6).toUpperCase();
     const text = [
       "Hola TendyPeru 👻 Quiero pedir *Yesitos divertidos*.",
+      "• Código de pedido: " + orderId,
       "• Kit: " + k.nombre + " (" + k.figuras + (k.figuras === 1 ? " figura" : " figuras") + ") – " + soles(k.precio) + " c/u",
       "• Cantidad: " + n,
       "• Subtotal: " + soles(sub),
@@ -1690,9 +1820,11 @@ const LIMA = ["Ancón","Ate","Barranco","Breña","Carabayllo","Cercado de Lima",
     const a = document.createElement("a");
     a.className = "btn btn-primary"; a.href = url; a.target = "_blank"; a.rel = "noopener";
     a.textContent = "Enviar pedido por WhatsApp";
+    a.addEventListener("click", () => trackWhatsAppContact(k, n, orderId)); // respaldo si el navegador bloqueó la ventana
     status.appendChild(a);
     a.scrollIntoView({ block: "nearest" });
     a.focus();
+    trackWhatsAppContact(k, n, orderId); // Contact: se abre WhatsApp con el pedido. NO es una compra (Purchase).
     try { window.open(url, "_blank", "noopener"); } catch (_) {}
     sending = false;
   });
