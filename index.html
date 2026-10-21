@@ -1503,6 +1503,24 @@ const soles = (n) => "S/ " + n.toFixed(2).replace(".", ",");
 /* ---------- Enlaces de WhatsApp ---------- */
 // api.whatsapp.com directo: la redirección de wa.me convierte los emojis del pedido en "�".
 const waLink = (text) => "https://api.whatsapp.com/send?phone=" + CONFIG.whatsapp + "&text=" + encodeURIComponent(text);
+/* ---------- Origen de la visita (UTM de los anuncios) ----------
+   Se guarda solo durante la visita y se agrega al mensaje de WhatsApp: así cada pedido dice de qué anuncio vino. */
+const ORIGEN = (function () {
+  const RED = { fb: "Facebook", ig: "Instagram", msg: "Messenger", an: "Audience Network" };
+  const limpio = (v) => (v || "").replace(/[\r\n]+/g, " ").replace(/\{\{.*?\}\}/g, "").trim().slice(0, 80);
+  try {
+    const p = new URLSearchParams(location.search);
+    if (p.get("utm_source") || p.get("fbclid")) {
+      const src = limpio(p.get("utm_source"));
+      const o = { red: RED[src.toLowerCase()] || src || "Meta", campana: limpio(p.get("utm_campaign")), conjunto: limpio(p.get("utm_term")), anuncio: limpio(p.get("utm_content")) };
+      sessionStorage.setItem("tp_origen", JSON.stringify(o));
+      return o;
+    }
+    return JSON.parse(sessionStorage.getItem("tp_origen") || "null");
+  } catch (_) { return null; }
+})();
+const origenTexto = () => ORIGEN ? [ORIGEN.red, ORIGEN.campana, ORIGEN.conjunto, ORIGEN.anuncio].filter(Boolean).join(" · ") : "";
+
 const pretty = "+" + CONFIG.whatsapp.replace(/^(\d{2})(\d{3})(\d{3})(\d{3})$/, "$1 $2 $3 $4");
 document.getElementById("wa-visible").textContent = pretty;
 document.getElementById("copy-wa").addEventListener("click", (e) => {
@@ -1811,7 +1829,7 @@ const LIMA = ["Ancón","Ate","Barranco","Breña","Carabayllo","Cercado de Lima",
       "• Dirección: " + clean("f-dir"),
       "• Referencia: " + clean("f-ref"),
       "• Pago: " + form.querySelector('input[name="pago"]:checked').value
-    ].join("\n");
+    ].concat(origenTexto() ? ["• Origen: " + origenTexto()] : []).join("\n");
     const url = waLink(text);
     if (CONFIG.formspree) {
       try { await fetch(CONFIG.formspree, { method: "POST", headers: { Accept: "application/json" }, body: new FormData(form) }); } catch (_) {}
