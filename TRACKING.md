@@ -69,7 +69,7 @@ El clic a WhatsApp es un interesado, no una venta. Para optimizar a compradores 
        "event_time": 1761000000,
        "event_id": "purchase-TP-XXXX",
        "action_source": "website",
-       "event_source_url": "https://<tu-dominio>/",
+       "event_source_url": "https://yesitos.tendyperu.com/",
        "user_data": { "ph": ["<sha256 de 519XXXXXXXX>"] },
        "custom_data": { "currency": "PEN", "value": 34.00, "order_id": "TP-XXXX",
                          "content_ids": ["yesitos-kit-3"], "num_items": 2 }
